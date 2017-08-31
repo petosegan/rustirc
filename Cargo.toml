@@ -1,0 +1,9 @@
+[package]
+name = "rustirc"
+version = "0.1.0"
+authors = ["Will Turner <rwturner17@gmail.com>"]
+
+[dependencies]
+getopts = "0.2"
+log = "0.3"
+fern = "0.4"
