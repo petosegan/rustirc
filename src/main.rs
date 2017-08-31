@@ -1,6 +1,8 @@
+#[macro_use]
 extern crate log;
 extern crate fern;
 extern crate getopts;
+extern crate chrono;
 use getopts::Options;
 use std::env;
 use std::io::Write;
@@ -14,6 +16,7 @@ fn brief<ProgramName>(program: ProgramName) -> String
     return format!("Usage: {} -o PASSWD [-p PORT] [(-q|-v|--vv)]", program);
 }
 
+#[allow(unused_must_use)]
 fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
@@ -45,6 +48,42 @@ fn main() {
         print_usage(&program, opts);
         return;
     }
+    let mut logging_level = log::LogLevelFilter::Info;
+    if matches.opt_present("v") {
+        logging_level = log::LogLevelFilter::Debug;
+    }
+    if matches.opt_present("vv") {
+        logging_level = log::LogLevelFilter::Trace;
+    }
+    if matches.opt_present("q") {
+        logging_level = log::LogLevelFilter::Off;
+    }
+
+    let port = match matches.opt_str("p") {
+        Some(s) => s,
+        None => "6667".to_string(),
+    };
+    let op_passwd = match matches.opt_str("o") {
+        Some(s) => s,
+        None => "swordfish".to_string(),
+    };
+
+    fern::Dispatch::new()
+    .format(|out, message, record| {
+        out.finish(format_args!(
+            "{}[{}][{}] {}",
+            chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+            record.target(),
+            record.level(),
+            message
+        ))
+    })
+    .level(logging_level)
+    .chain(std::io::stdout())
+    .apply();
 	
-    println!("Hello, world!");
+    info!("\nOperator Password: {}\nPort: {}", op_passwd, port);
+    info!("INFO is printing.");
+    debug!("DEBUG is printing.");
+    trace!("TRACE is printing.");
 }
