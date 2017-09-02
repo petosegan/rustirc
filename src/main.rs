@@ -6,12 +6,12 @@ extern crate bufstream;
 use getopts::Options;
 use std::env;
 use std::io::{Write, BufRead};
-use std::net::{TcpListener, TcpStream, SocketAddr};
+use std::net::{TcpListener, TcpStream, SocketAddr, IpAddr, Ipv4Addr};
 use std::collections::HashMap;
 use bufstream::{BufStream};
 
 mod parser;
-use parser::{Message, User};
+use parser::{Command, User};
 
 fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief(&program)));
@@ -25,15 +25,19 @@ fn brief<ProgramName>(program: ProgramName) -> String
 struct IrcServer {
 	nicknames: HashMap<SocketAddr, String>, 
 	users: HashMap<SocketAddr, parser::User>,
+	local_address: SocketAddr,
 }
 
 impl IrcServer {
 	fn new() -> Self {
-		IrcServer { nicknames: HashMap::new(), users: HashMap::new() }
+		IrcServer { nicknames: HashMap::new(),
+			users: HashMap::new(),
+			local_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)}
 	}
 
 	fn handle_client(&mut self, stream: TcpStream) {
 		let peer_address = stream.peer_addr().unwrap();
+		self.local_address = stream.local_addr().unwrap();
 		let mut stream = BufStream::new(stream);
 		loop {
 			let mut buffer = String::new();
@@ -46,10 +50,10 @@ impl IrcServer {
 			if buffer.is_empty() { break; }
 
 			match parser::parse_message(buffer) {
-				Ok(Message::Nick(nick)) => {
+				Ok(Command::Nick(nick)) => {
 					self.handle_nick(&mut stream, peer_address, nick);
 				}
-				Ok(Message::User(user)) => {
+				Ok(Command::User(user)) => {
 					self.handle_user(&mut stream, peer_address, user);
 				}
 				Err(e) => {
@@ -81,8 +85,12 @@ impl IrcServer {
 	}
 
 	fn send_reply(&self, stream: &mut BufStream<TcpStream>, peer_address: SocketAddr) {
-		if let Err(e) = write!(stream, "Welcome to the Internet Relay Network {}!{}@{}\r\n",
-			self.nicknames[&peer_address], self.users[&peer_address].user, peer_address) {
+		if let Err(e) = write!(stream, ":{} 001 {} :Welcome to the Internet Relay Network {}!{}@{}\r\n",
+				self.local_address,
+				self.nicknames[&peer_address],
+				self.nicknames[&peer_address],
+				self.users[&peer_address].user,
+				peer_address) {
 			error!("Stream Write Error: {}", e);
 		}
 		if let Err(e) = stream.flush() {
