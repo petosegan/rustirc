@@ -2,16 +2,12 @@
 extern crate log;
 extern crate fern;
 extern crate getopts;
-extern crate bufstream;
+extern crate rustirc;
 use getopts::Options;
 use std::env;
-use std::io::{Write, BufRead};
-use std::net::{TcpListener, TcpStream, SocketAddr, IpAddr, Ipv4Addr};
-use std::collections::HashMap;
-use bufstream::{BufStream};
+use std::io::{Write};
 
-mod parser;
-use parser::{Command, User};
+use rustirc::IrcServer;
 
 fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief(&program)));
@@ -22,82 +18,17 @@ fn brief<ProgramName>(program: ProgramName) -> String
     return format!("Usage: {} -o PASSWD [-p PORT] [(-q|-v|--vv)]", program);
 }
 
-struct IrcServer {
-	nicknames: HashMap<SocketAddr, String>, 
-	users: HashMap<SocketAddr, parser::User>,
-	local_address: SocketAddr,
-}
-
-impl IrcServer {
-	fn new() -> Self {
-		IrcServer { nicknames: HashMap::new(),
-			users: HashMap::new(),
-			local_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)}
-	}
-
-	fn handle_client(&mut self, stream: TcpStream) {
-		let peer_address = stream.peer_addr().unwrap();
-		self.local_address = stream.local_addr().unwrap();
-		let mut stream = BufStream::new(stream);
-		loop {
-			let mut buffer = String::new();
-
-			if let Err(e) = stream.read_line(&mut buffer) {
-				error!("Stream Read Error: {}", e);
-				continue;
-			}
-
-			if buffer.is_empty() { break; }
-
-			match parser::parse_message(buffer) {
-				Ok(Command::Nick(nick)) => {
-					self.handle_nick(&mut stream, peer_address, nick);
-				}
-				Ok(Command::User(user)) => {
-					self.handle_user(&mut stream, peer_address, user);
-				}
-				Err(e) => {
-					error!("Message Parsing Error: {}", e);
-				}
-			}
-		}
-	}
-
-	fn handle_nick(&mut self, stream: &mut BufStream<TcpStream>,
-		peer_address: SocketAddr,
-		nick: String) {
-		trace!("got NICK message\nnick: {}", nick);
-		self.nicknames.insert(peer_address, nick);
-		if self.users.contains_key(&peer_address) {
-			self.send_reply(stream, peer_address);
-		}
-	}
-
-	fn handle_user(&mut self, stream: &mut BufStream<TcpStream>,
-		peer_address: SocketAddr,
-		user: User) {
-		trace!("got USER message\nuser: {}\nmode: {}\nrealname: {}",
-			user.user, user.mode, user.realname);
-		self.users.insert(peer_address, user);
-		if self.nicknames.contains_key(&peer_address) {
-			self.send_reply(stream, peer_address);
-		}
-	}
-
-	fn send_reply(&self, stream: &mut BufStream<TcpStream>, peer_address: SocketAddr) {
-		if let Err(e) = write!(stream, ":{} 001 {} :Welcome to the Internet Relay Network {}!{}@{}\r\n",
-				self.local_address,
-				self.nicknames[&peer_address],
-				self.nicknames[&peer_address],
-				self.users[&peer_address].user,
-				peer_address) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
-	}
-}
+/* 
+New streams will spawn threads (Connection) to own them.
+Connections will own a receiver channel.
+All connections share references to:
+	nicknames
+	users
+	phonebook
+The annoying bit: each Connection has to read and write
+to its stream. It has to monitor both the stream and the
+channel. Not sure how to do this.
+*/
 
 #[allow(unused_must_use)]
 fn main() {
@@ -173,15 +104,6 @@ fn main() {
     debug!("DEBUG is printing.");
     trace!("TRACE is printing.");
 
-    let mut this_irc_server = IrcServer::new();
-
-    // now do some actual network programming
-    let listener = TcpListener::bind(("127.0.0.1", portnum)).unwrap();
-    match listener.accept() {
-	    Ok((socket, addr)) => {
-	    	trace!("new client: {:?}", addr);
-	    	this_irc_server.handle_client(socket);
-	    }
-	    Err(e) => error!("couldn't get client: {:?}", e),
-	}
+    let mut this_irc_server = IrcServer::new(portnum);
+    this_irc_server.run();
 }

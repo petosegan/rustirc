@@ -1,6 +1,7 @@
 pub enum Command {
 	Nick(String), // nickname
 	User(User), // user, mode, realname
+	Quit(String) // Quit Message
 }
 
 struct Message {
@@ -96,6 +97,15 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 					));
 			}
 		},
+		"QUIT" => {
+			if num_param == 0 {
+				return Ok(Command::Quit("Client Quit".to_string()));
+			} else if num_param == 1 {
+				return Ok(Command::Quit(this_message.params[0].to_string()));
+			} else {
+				return Err("Quit needs at most one parameter");
+			}
+		}
 		_ => {return Err("unknown command");}
 	}
 }
