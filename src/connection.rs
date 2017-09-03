@@ -88,34 +88,23 @@ impl Connection {
 	fn handle_user(&mut self, user: User) {
 		trace!("got USER message\nuser: {}\nmode: {}\nrealname: {}",
 			user.user, user.mode, user.realname);
-
-		let does_contain : bool;
 		{
-			let uu = self.users.lock().unwrap();
-			does_contain = (*uu).contains_key(&self.peer_addr);
+			let mut uu = self.users.lock().unwrap();
+			(*uu).insert(self.peer_addr, user);
 		}
 
-		if false {
-			self.send_err_alreadyregistered();
-		} else {
-			{
-				let mut uu = self.users.lock().unwrap();
-				(*uu).insert(self.peer_addr, user);
-			}
+		let has_nick : bool;
+		{
+			let nn = self.nicknames.lock().unwrap();
+			has_nick = (*nn).contains_key(&self.peer_addr);
+		}
 
-			let has_nick : bool;
-			{
-				let nn = self.nicknames.lock().unwrap();
-				has_nick = (*nn).contains_key(&self.peer_addr);
-			}
-
-			if has_nick {
-				self.send_rpl_welcome();
-				self.send_rpl_yourhost();
-				self.send_rpl_created();
-				self.send_rpl_myinfo();
-				self.send_rpl_postwelcome();
-			}
+		if has_nick {
+			self.send_rpl_welcome();
+			self.send_rpl_yourhost();
+			self.send_rpl_created();
+			self.send_rpl_myinfo();
+			self.send_rpl_postwelcome();
 		}
 	}
 
@@ -125,96 +114,57 @@ impl Connection {
 	}
 
 	fn send_rpl_welcome(&mut self) {
-		let this_nickname: String;
+		let this_nickname = self.get_nickname();
 		let this_user: String;
 		{
-			let nn = self.nicknames.lock().unwrap();
-			this_nickname = (*nn)[&self.peer_addr].clone();
 			let uu = self.users.lock().unwrap();
 			this_user = (*uu)[&self.peer_addr].user.clone();
 		}
-
-		if let Err(e) = write!(self.stream, ":{} 001 {} :Welcome to the Internet Relay Network {}!{}@{}\r\n",
+		let reply = format!(":{} 001 {} :Welcome to the Internet Relay Network {}!{}@{}\r\n",
 				self.local_addr,
 				this_nickname,
 				this_nickname,
 				this_user,
-				self.peer_addr) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				self.peer_addr);
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_quit(&mut self, quit_message: String) {
-		if let Err(e) = write!(self.stream, "ERROR :Closing Link: {} ({})\r\n",
+		let reply = format!("ERROR :Closing Link: {} ({})\r\n",
 				self.peer_addr,
-				quit_message) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				quit_message);
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_yourhost(&mut self) {
-		let this_nickname: String;
-		{
-			let nn = self.nicknames.lock().unwrap();
-			this_nickname = (*nn)[&self.peer_addr].clone();
-		}
-		if let Err(e) = write!(self.stream, ":{} 002 {} :Your host is {}, running version 0.1\r\n",
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 002 {} :Your host is {}, running version 0.1\r\n",
 				self.local_addr,
 				this_nickname,
-				self.local_addr) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				self.local_addr);
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_created(&mut self) {
-		let this_nickname: String;
-		{
-			let nn = self.nicknames.lock().unwrap();
-			this_nickname = (*nn)[&self.peer_addr].clone();
-		}
-		if let Err(e) = write!(self.stream, ":{} 003 {} :This server was created SOMEDATE\r\n",
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 003 {} :This server was created SOMEDATE\r\n",
 				self.local_addr,
-				this_nickname) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				this_nickname);
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_myinfo(&mut self) {
-		let this_nickname: String;
-		{
-			let nn = self.nicknames.lock().unwrap();
-			this_nickname = (*nn)[&self.peer_addr].clone();
-		}
-		if let Err(e) = write!(self.stream, ":{} 004 {} {} 0.1 ao mtov\r\n",
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 004 {} {} 0.1 ao mtov\r\n",
 				self.local_addr,
 				this_nickname,
-				self.local_addr) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				self.local_addr);
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_postwelcome(&mut self) {
-		let this_nickname: String;
-		{
-			let nn = self.nicknames.lock().unwrap();
-			this_nickname = (*nn)[&self.peer_addr].clone();
-		}
-		if let Err(e) = write!(self.stream, ":{} 251 {} :There are 1 users and 0 services on 1 servers\r\n:{} 252 {} 0 :operator(s) online\r\n:{} 253 {} 0 :unknown connection(s)\r\n:{} 254 {} 0 :channels formed\r\n:{} 255 {} :I have 1 clients and 1 servers\r\n:{} 422 {} :MOTD File is missing\r\n",
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 251 {} :There are 1 users and 0 services on 1 servers\r\n:{} 252 {} 0 :operator(s) online\r\n:{} 253 {} 0 :unknown connection(s)\r\n:{} 254 {} 0 :channels formed\r\n:{} 255 {} :I have 1 clients and 1 servers\r\n:{} 422 {} :MOTD File is missing\r\n",
 				self.local_addr,
 				this_nickname,
 				self.local_addr,
@@ -226,28 +176,30 @@ impl Connection {
 				self.local_addr,
 				this_nickname,
 				self.local_addr,
-				this_nickname) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				this_nickname);
+		self.write_reply(reply);
 	}
 
 	fn send_err_nicknameinuse(&mut self, nickname: String) {
-		if let Err(e) = write!(self.stream, ":{} 433 * {} :Nickname is already in use\r\n",
+		let reply = format!(":{} 433 * {} :Nickname is already in use\r\n",
 				self.local_addr,
-				nickname) {
-			error!("Stream Write Error: {}", e);
-		}
-		if let Err(e) = self.stream.flush() {
-			error!("Stream Flush Error: {}", e);
-		}
+				nickname);
+		self.write_reply(reply);
 	}
 
-	fn send_err_alreadyregistered(&mut self) {
-		if let Err(e) = write!(self.stream, ":{} 462 :Unauthorized command (already registered)\r\n",
-				self.local_addr) {
+	// fn send_err_alreadyregistered(&mut self) {
+	// 	let reply = format!(":{} 462 :Unauthorized command (already registered)\r\n",
+	// 			self.local_addr);
+	// 	self.write_reply(reply);
+	// }
+
+	fn get_nickname(&self) -> String {
+		let nn = self.nicknames.lock().unwrap();
+		return (*nn)[&self.peer_addr].clone();
+	}
+
+	fn write_reply(&mut self, reply: String) {
+		if let Err(e) = self.stream.write(reply.as_bytes()) {
 			error!("Stream Write Error: {}", e);
 		}
 		if let Err(e) = self.stream.flush() {
