@@ -16,6 +16,7 @@ impl Message {
 	}
 }
 
+#[derive(PartialEq, Debug)]
 pub struct User {
 	pub user: String,
 	pub mode: String,

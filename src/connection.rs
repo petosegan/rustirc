@@ -51,19 +51,33 @@ impl Connection {
 
 	fn handle_nick(&mut self, nick: String) {
 		trace!("got NICK message\nnick: {}", nick);
+
+		let does_contain : bool;
 		{
-			let mut nn = self.nicknames.lock().unwrap();
-			(*nn).insert(self.peer_addr, nick);
+			let nn = self.nicknames.lock().unwrap();
+			does_contain = (*nn).values()
+		        .find(|&val| *val == nick)
+		        .is_some();
 		}
 
-		let has_user : bool;
-		{
-			let uu = self.users.lock().unwrap();
-			has_user = (*uu).contains_key(&self.peer_addr);
-		}
+		if does_contain { 
+	    	self.send_err_nicknameinuse(nick);
+	    } else {
 
-		if has_user {
-			self.send_rpl_welcome();
+			{
+				let mut nn = self.nicknames.lock().unwrap();
+				(*nn).insert(self.peer_addr, nick);
+			}
+
+			let has_user : bool;
+			{
+				let uu = self.users.lock().unwrap();
+				has_user = (*uu).contains_key(&self.peer_addr);
+			}
+
+			if has_user {
+				self.send_rpl_welcome();
+			}
 		}
 	}
 
@@ -71,19 +85,29 @@ impl Connection {
 		trace!("got USER message\nuser: {}\nmode: {}\nrealname: {}",
 			user.user, user.mode, user.realname);
 
+		let does_contain : bool;
 		{
-			let mut uu = self.users.lock().unwrap();
-			(*uu).insert(self.peer_addr, user);
+			let uu = self.users.lock().unwrap();
+			does_contain = (*uu).contains_key(&self.peer_addr);
 		}
 
-		let has_nick : bool;
-		{
-			let nn = self.nicknames.lock().unwrap();
-			has_nick = (*nn).contains_key(&self.peer_addr);
-		}
+		if does_contain {
+			self.send_err_alreadyregistered();
+		} else {
+			{
+				let mut uu = self.users.lock().unwrap();
+				(*uu).insert(self.peer_addr, user);
+			}
 
-		if has_nick {
-			self.send_rpl_welcome();
+			let has_nick : bool;
+			{
+				let nn = self.nicknames.lock().unwrap();
+				has_nick = (*nn).contains_key(&self.peer_addr);
+			}
+
+			if has_nick {
+				self.send_rpl_welcome();
+			}
 		}
 	}
 
@@ -119,6 +143,27 @@ impl Connection {
 		if let Err(e) = write!(self.stream, "Closing Link: {} ({})\r\n",
 				self.peer_addr,
 				quit_message) {
+			error!("Stream Write Error: {}", e);
+		}
+		if let Err(e) = self.stream.flush() {
+			error!("Stream Flush Error: {}", e);
+		}
+	}
+
+	fn send_err_nicknameinuse(&mut self, nickname: String) {
+		if let Err(e) = write!(self.stream, ":{} 433 {} :Nickname is already in use\r\n",
+				self.local_addr,
+				nickname) {
+			error!("Stream Write Error: {}", e);
+		}
+		if let Err(e) = self.stream.flush() {
+			error!("Stream Flush Error: {}", e);
+		}
+	}
+
+	fn send_err_alreadyregistered(&mut self) {
+		if let Err(e) = write!(self.stream, ":{} 462 :Unauthorized command (already registered)\r\n",
+				self.local_addr) {
 			error!("Stream Write Error: {}", e);
 		}
 		if let Err(e) = self.stream.flush() {
