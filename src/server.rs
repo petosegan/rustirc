@@ -1,6 +1,7 @@
 use std::net::{TcpListener, SocketAddr};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 use parser::{User};
 use connection::{Connection};
@@ -24,8 +25,12 @@ impl IrcServer {
 	    for socket in listener.incoming() {
 	    	match socket {
 	    		Ok(stream) => {
-	    			let mut this_connection = Connection::new(stream, self.nicknames.clone(), self.users.clone());
-	    			this_connection.handle_client();
+	    			let this_nicknames = self.nicknames.clone();
+	    			let this_users = self.users.clone();
+	    			thread::spawn(|| {
+		    			let mut this_connection = Connection::new(stream, this_nicknames, this_users);
+		    			this_connection.handle_client();
+		    		});
 	    		},
 	    		Err(e) => error!("couldn't get client: {:?}", e),
 	    	}
