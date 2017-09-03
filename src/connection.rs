@@ -38,19 +38,13 @@ impl Connection {
 			if buffer.is_empty() { break; }
 
 			match parse_message(buffer) {
-				Ok(Command::Nick(nick)) => {
-					self.handle_nick(nick);
-				},
-				Ok(Command::User(user)) => {
-					self.handle_user(user);
-				},
+				Ok(Command::Nick(nick)) => { self.handle_nick(nick); },
+				Ok(Command::User(user)) => { self.handle_user(user); },
 				Ok(Command::Quit(quit_message)) => {
 					self.handle_quit(quit_message);
 					break;
 				}
-				Err(e) => {
-					error!("Message Parsing Error: {}", e);
-				},
+				Err(e) => { error!("Message Parsing Error: {}", e); },
 			}
 		}
 	}
@@ -101,7 +95,6 @@ impl Connection {
 	fn send_rpl_welcome(&mut self) {
 		let this_nickname: String;
 		let this_user: String;
-
 		{
 			let nn = self.nicknames.lock().unwrap();
 			this_nickname = (*nn)[&self.peer_addr].clone();
@@ -123,7 +116,7 @@ impl Connection {
 	}
 
 	fn send_rpl_quit(&mut self, quit_message: String) {
-		if let Err(e) = write!(self.stream, "Closing Link: {} ({})",
+		if let Err(e) = write!(self.stream, "Closing Link: {} ({})\r\n",
 				self.peer_addr,
 				quit_message) {
 			error!("Stream Write Error: {}", e);

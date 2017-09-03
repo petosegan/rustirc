@@ -47,6 +47,10 @@ fn parse_stream(stream: String) -> Result<Message, &'static str> {
 		trace!("scanned command: {}", this_message.command);
 		ix += command_end + 1;
 		trace!("first param at ix: {}", ix);
+	} else {
+		this_message.command = stream[ix..].to_string();
+		trace!("scanned command: {}", this_message.command);
+		ix = stream.len();
 	}
 	while ix < stream.len() {
 		// long parameter

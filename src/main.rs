@@ -88,16 +88,16 @@ fn main() {
     };
 
     fern::Dispatch::new()
-    .format(|out, message, record| {
-        out.finish(format_args!(
-            "[{}] {}",
-            record.level(),
-            message
-        ))
-    })
-    .level(logging_level)
-    .chain(std::io::stdout())
-    .apply();
+	    .format(|out, message, record| {
+	        out.finish(format_args!(
+	            "[{}] {}",
+	            record.level(),
+	            message
+	        ))
+	    })
+	    .level(logging_level)
+	    .chain(std::io::stdout())
+	    .apply();
 	
     trace!("\nOperator Password: {}\nPort: {}", op_passwd, portnum);
     info!("INFO is printing.");
