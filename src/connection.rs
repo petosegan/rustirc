@@ -8,7 +8,8 @@ use std::sync::mpsc;
 use parser::{Command, User, parse_message};
 
 pub struct Connection {
-	nicknames: Arc<Mutex<HashMap<SocketAddr, String>>>,
+	my_nickname: Option<String>,
+	nicknames: Arc<Mutex<HashMap<String, SocketAddr>>>,
 	users: Arc<Mutex<HashMap<SocketAddr, User>>>,
 	local_addr: SocketAddr,
 	peer_addr: SocketAddr,
@@ -19,11 +20,12 @@ pub struct Connection {
 
 impl Connection {
 	pub fn new(stream: TcpStream,
-		nicknames: Arc<Mutex<HashMap<SocketAddr, String>>>,
+		nicknames: Arc<Mutex<HashMap<String, SocketAddr>>>,
 		users: Arc<Mutex<HashMap<SocketAddr, User>>>,
 		rx: mpsc::Receiver<String>,
 		phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>) -> Self {
 		Connection {
+			my_nickname: None,
 			nicknames: nicknames,
 			users: users,
 			local_addr: stream.local_addr().unwrap(),
@@ -60,12 +62,12 @@ impl Connection {
 	fn handle_nick(&mut self, nick: String) {
 		trace!("got NICK message\nnick: {}", nick);
 
+		self.my_nickname = Some(nick.clone());
+
 		let does_contain : bool;
 		{
 			let nn = self.nicknames.lock().unwrap();
-			does_contain = (*nn).values()
-		        .find(|&val| *val == nick)
-		        .is_some();
+			does_contain = (*nn).contains_key(&nick);
 		}
 
 		if does_contain { 
@@ -74,7 +76,7 @@ impl Connection {
 
 			{
 				let mut nn = self.nicknames.lock().unwrap();
-				(*nn).insert(self.peer_addr, nick);
+				(*nn).insert(nick, self.peer_addr);
 			}
 
 			let has_user : bool;
@@ -104,7 +106,9 @@ impl Connection {
 		let has_nick : bool;
 		{
 			let nn = self.nicknames.lock().unwrap();
-			has_nick = (*nn).contains_key(&self.peer_addr);
+			has_nick = (*nn).values()
+		        .find(|&val| *val == self.peer_addr)
+		        .is_some();
 		}
 
 		if has_nick {
@@ -206,8 +210,8 @@ impl Connection {
 	// }
 
 	fn get_nickname(&self) -> String {
-		let nn = self.nicknames.lock().unwrap();
-		return (*nn)[&self.peer_addr].clone();
+		let result = self.my_nickname.clone().unwrap();
+		return result;
 	}
 
 	fn write_reply(&mut self, reply: String) {

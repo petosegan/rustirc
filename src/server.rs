@@ -8,7 +8,7 @@ use parser::{User};
 use connection::{Connection};
 
 pub struct IrcServer {
-	nicknames: Arc<Mutex<HashMap<SocketAddr, String>>>, 
+	nicknames: Arc<Mutex<HashMap<String, SocketAddr>>>, 
 	users: Arc<Mutex<HashMap<SocketAddr, User>>>,
 	phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>,
 	portnum: u16,
