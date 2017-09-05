@@ -1,7 +1,8 @@
 pub enum Command {
 	Nick(String), // nickname
 	User(User), // user, mode, realname
-	Quit(String) // Quit Message
+	Quit(String), // Quit Message
+	Privmsg(String, String), // msgtarget, msgtext
 }
 
 struct Message {
@@ -109,6 +110,24 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 				return Ok(Command::Quit(this_message.params[0].to_string()));
 			} else {
 				return Err("Quit needs at most one parameter");
+			}
+		},
+		"PRIVMSG" => {
+			if num_param != 2 {
+				return Err("PRIVMSG needs 2 parameters");
+			} else {
+				let this_target = this_message.params[0].clone();
+				let this_text = this_message.params[1].clone();
+				return Ok(Command::Privmsg(this_target, this_text));
+			}
+		},
+		"NOTICE" => {
+			if num_param != 2 {
+				return Err("NOTICE needs 2 parameters");
+			} else {
+				let this_target = this_message.params[0].clone();
+				let this_text = this_message.params[1].clone();
+				return Ok(Command::Privmsg(this_target, this_text));
 			}
 		}
 		_ => {return Err("unknown command");}

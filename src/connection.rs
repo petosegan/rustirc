@@ -3,6 +3,7 @@ use std::io::{Write, BufRead};
 use bufstream::BufStream;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::mpsc;
 
 use parser::{Command, User, parse_message};
 
@@ -12,18 +13,24 @@ pub struct Connection {
 	local_addr: SocketAddr,
 	peer_addr: SocketAddr,
 	stream: BufStream<TcpStream>,
+	rx: mpsc::Receiver<String>,
+	phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>,
 }
 
 impl Connection {
 	pub fn new(stream: TcpStream,
 		nicknames: Arc<Mutex<HashMap<SocketAddr, String>>>,
-		users: Arc<Mutex<HashMap<SocketAddr, User>>>) -> Self {
+		users: Arc<Mutex<HashMap<SocketAddr, User>>>,
+		rx: mpsc::Receiver<String>,
+		phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>) -> Self {
 		Connection {
 			nicknames: nicknames,
 			users: users,
 			local_addr: stream.local_addr().unwrap(),
 			peer_addr: stream.peer_addr().unwrap(),
-			stream: BufStream::new(stream)}
+			stream: BufStream::new(stream),
+			rx: rx,
+			phonebook: phonebook}
 	}
 
 	pub fn handle_client(&mut self) {
@@ -43,7 +50,8 @@ impl Connection {
 				Ok(Command::Quit(quit_message)) => {
 					self.handle_quit(quit_message);
 					break;
-				}
+				},
+				Ok(Command::Privmsg(target, text)) => { self.handle_privmsg(target, text); }
 				Err(e) => { error!("Message Parsing Error: {}", e); },
 			}
 		}
@@ -111,6 +119,10 @@ impl Connection {
 	fn handle_quit(&mut self, quit_message: String) {
 		trace!("got QUIT message\nquit_message: {}", quit_message);
 		self.send_rpl_quit(quit_message);
+	}
+
+	fn handle_privmsg(&mut self, target: String, text: String) {
+		trace!("got PRIVMSG message\ntarget: {}\ntext: {}", target, text);
 	}
 
 	fn send_rpl_welcome(&mut self) {
