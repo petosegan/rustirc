@@ -127,6 +127,11 @@ impl Connection {
 
 	fn handle_privmsg(&mut self, target: String, text: String) {
 		trace!("got PRIVMSG message\ntarget: {}\ntext: {}", target, text);
+		let nn = self.nicknames.lock().unwrap();
+		let pb = self.phonebook.lock().unwrap();
+		let target_addr = (*nn)[&target];
+		let target_tx = &(*pb)[&target_addr];
+		(*target_tx).send(text).unwrap();
 	}
 
 	fn send_rpl_welcome(&mut self) {
