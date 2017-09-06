@@ -4,6 +4,8 @@ pub enum Command {
 	Quit(String), // Quit Message
 	Privmsg(String, String), // msgtarget, msgtext
 	Notice(String, String), // msgtarget, msgtext
+	Ping,
+	Pong,
 }
 
 struct Message {
@@ -130,7 +132,13 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 				let this_text = this_message.params[1].clone();
 				return Ok(Command::Notice(this_target, this_text));
 			}
-		}
+		},
+		"PING" => {
+			return Ok(Command::Ping);
+		},
+		"PONG" => {
+			return Ok(Command::Pong);
+		},
 		_ => {return Err("unknown command");}
 	}
 }

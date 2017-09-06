@@ -57,7 +57,9 @@ impl Connection {
 						break;
 					},
 					Ok(Command::Privmsg(target, text)) => { self.handle_privmsg(target, text); },
-					Ok(Command::Notice(target, text)) => { self.handle_notice(target, text); }
+					Ok(Command::Notice(target, text)) => { self.handle_notice(target, text); },
+					Ok(Command::Ping) => { self.handle_ping(); },
+					Ok(Command::Pong) => {},
 					Err(e) => { error!("Message Parsing Error: {}", e); },
 				}
 			}
@@ -174,6 +176,11 @@ impl Connection {
 
 			(*target_tx).send(full_message).unwrap();
 		}
+	}
+
+	fn handle_ping(&mut self) {
+		let reply = format!("PONG {}\r\n", self.local_addr);
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_welcome(&mut self) {
