@@ -28,6 +28,7 @@ impl IrcServer {
 	    for socket in listener.incoming() {
 	    	match socket {
 	    		Ok(stream) => {
+	    			stream.set_nonblocking(true).expect("set_nonblocking call failed");
 	    			let this_nicknames = self.nicknames.clone();
 	    			let this_users = self.users.clone();
 	    			let this_phonebook = self.phonebook.clone();

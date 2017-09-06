@@ -37,24 +37,28 @@ impl Connection {
 
 	pub fn handle_client(&mut self) {
 		loop {
+			if let Ok(message) = self.rx.try_recv() {
+				self.write_reply(format!("{}\r\n", message));
+			}
+
 			let mut buffer = String::new();
 
 			if let Err(e) = self.stream.read_line(&mut buffer) {
-				error!("Stream Read Error: {}", e);
+				// error!("Stream Read Error: {}", e);
 				continue;
-			}
+			} else {
+				if buffer.is_empty() { break; }
 
-			if buffer.is_empty() { break; }
-
-			match parse_message(buffer) {
-				Ok(Command::Nick(nick)) => { self.handle_nick(nick); },
-				Ok(Command::User(user)) => { self.handle_user(user); },
-				Ok(Command::Quit(quit_message)) => {
-					self.handle_quit(quit_message);
-					break;
-				},
-				Ok(Command::Privmsg(target, text)) => { self.handle_privmsg(target, text); }
-				Err(e) => { error!("Message Parsing Error: {}", e); },
+				match parse_message(buffer) {
+					Ok(Command::Nick(nick)) => { self.handle_nick(nick); },
+					Ok(Command::User(user)) => { self.handle_user(user); },
+					Ok(Command::Quit(quit_message)) => {
+						self.handle_quit(quit_message);
+						break;
+					},
+					Ok(Command::Privmsg(target, text)) => { self.handle_privmsg(target, text); }
+					Err(e) => { error!("Message Parsing Error: {}", e); },
+				}
 			}
 		}
 	}
