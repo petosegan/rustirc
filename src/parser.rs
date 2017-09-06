@@ -3,6 +3,7 @@ pub enum Command {
 	User(User), // user, mode, realname
 	Quit(String), // Quit Message
 	Privmsg(String, String), // msgtarget, msgtext
+	Notice(String, String), // msgtarget, msgtext
 }
 
 struct Message {
@@ -127,7 +128,7 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 			} else {
 				let this_target = this_message.params[0].clone();
 				let this_text = this_message.params[1].clone();
-				return Ok(Command::Privmsg(this_target, this_text));
+				return Ok(Command::Notice(this_target, this_text));
 			}
 		}
 		_ => {return Err("unknown command");}

@@ -43,7 +43,7 @@ impl Connection {
 
 			let mut buffer = String::new();
 
-			if let Err(e) = self.stream.read_line(&mut buffer) {
+			if let Err(_) = self.stream.read_line(&mut buffer) {
 				// error!("Stream Read Error: {}", e);
 				continue;
 			} else {
@@ -56,7 +56,8 @@ impl Connection {
 						self.handle_quit(quit_message);
 						break;
 					},
-					Ok(Command::Privmsg(target, text)) => { self.handle_privmsg(target, text); }
+					Ok(Command::Privmsg(target, text)) => { self.handle_privmsg(target, text); },
+					Ok(Command::Notice(target, text)) => { self.handle_notice(target, text); }
 					Err(e) => { error!("Message Parsing Error: {}", e); },
 				}
 			}
@@ -131,20 +132,53 @@ impl Connection {
 
 	fn handle_privmsg(&mut self, target: String, text: String) {
 		trace!("got PRIVMSG message\ntarget: {}\ntext: {}", target, text);
-		let nn = self.nicknames.lock().unwrap();
-		let pb = self.phonebook.lock().unwrap();
-		let target_addr = (*nn)[&target];
-		let target_tx = &(*pb)[&target_addr];
-		(*target_tx).send(text).unwrap();
+		let mut target_exists = false;
+		{
+			let nn = self.nicknames.lock().unwrap();
+			if let Some(_) = (*nn).get(&target) {
+				target_exists = true;
+			}
+		}
+		if target_exists {
+			let nn = self.nicknames.lock().unwrap();
+			let pb = self.phonebook.lock().unwrap();
+			let target_addr = (*nn)[&target];
+			let target_tx = &(*pb)[&target_addr];
+
+			let prefix = format!(":{}!{}@{} PRIVMSG {} :", self.get_nickname(), self.get_user(), self.local_addr, target);
+			let full_message = format!("{}{}", prefix, text);
+
+			(*target_tx).send(full_message).unwrap();
+		} else {
+			self.send_err_nosuchnick(target);
+		}
+	}
+
+	fn handle_notice(&mut self, target: String, text: String) {
+		trace!("got NOTICE message\ntarget: {}\ntext: {}", target, text);
+		let mut target_exists = false;
+		{
+			let nn = self.nicknames.lock().unwrap();
+			if let Some(_) = (*nn).get(&target) {
+				target_exists = true;
+			}
+		}
+		if target_exists {
+			let nn = self.nicknames.lock().unwrap();
+			let pb = self.phonebook.lock().unwrap();
+			let target_addr = (*nn)[&target];
+			let target_tx = &(*pb)[&target_addr];
+
+			let prefix = format!(":{}!{}@{} NOTICE {} :", self.get_nickname(), self.get_user(), self.local_addr, target);
+			let full_message = format!("{}{}", prefix, text);
+
+			(*target_tx).send(full_message).unwrap();
+		}
 	}
 
 	fn send_rpl_welcome(&mut self) {
 		let this_nickname = self.get_nickname();
-		let this_user: String;
-		{
-			let uu = self.users.lock().unwrap();
-			this_user = (*uu)[&self.peer_addr].user.clone();
-		}
+		let this_user = self.get_user();
 		let reply = format!(":{} 001 {} :Welcome to the Internet Relay Network {}!{}@{}\r\n",
 				self.local_addr,
 				this_nickname,
@@ -212,6 +246,14 @@ impl Connection {
 		self.write_reply(reply);
 	}
 
+	fn send_err_nosuchnick(&mut self, nickname: String) {
+		let reply = format!(":{} 401 {} {} :No such nick/channel\r\n",
+			self.local_addr,
+			self.get_nickname(),
+			nickname);
+		self.write_reply(reply);
+	}
+
 	// fn send_err_alreadyregistered(&mut self) {
 	// 	let reply = format!(":{} 462 :Unauthorized command (already registered)\r\n",
 	// 			self.local_addr);
@@ -221,6 +263,11 @@ impl Connection {
 	fn get_nickname(&self) -> String {
 		let result = self.my_nickname.clone().unwrap();
 		return result;
+	}
+
+	fn get_user(&self) -> String {
+		let uu = self.users.lock().unwrap();
+		return (*uu)[&self.peer_addr].user.clone();
 	}
 
 	fn write_reply(&mut self, reply: String) {
