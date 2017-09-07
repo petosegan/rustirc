@@ -64,6 +64,7 @@ impl Connection {
 					Ok(Command::Ping) => { self.handle_ping(); },
 					Ok(Command::Pong) => {},
 					Ok(Command::Motd) => { self.handle_motd(); },
+					Ok(Command::Lusers) => { self.handle_lusers(); },
 					Err(e) => { error!("Message Parsing Error: {}", e); },
 				}
 			}
@@ -97,11 +98,7 @@ impl Connection {
 			}
 
 			if has_user {
-				self.send_rpl_welcome();
-				self.send_rpl_yourhost();
-				self.send_rpl_created();
-				self.send_rpl_myinfo();
-				self.send_rpl_postwelcome();
+				self.send_welcome();
 			}
 		}
 	}
@@ -123,12 +120,17 @@ impl Connection {
 		}
 
 		if has_nick {
-			self.send_rpl_welcome();
-			self.send_rpl_yourhost();
-			self.send_rpl_created();
-			self.send_rpl_myinfo();
-			self.send_rpl_postwelcome();
+			self.send_welcome();
 		}
+	}
+
+	fn send_welcome(&mut self) {
+		self.send_rpl_welcome();
+		self.send_rpl_yourhost();
+		self.send_rpl_created();
+		self.send_rpl_myinfo();
+		self.handle_lusers();
+		self.handle_motd();
 	}
 
 	fn handle_quit(&mut self, quit_message: String) {
@@ -203,6 +205,14 @@ impl Connection {
 		self.send_rpl_motd_end();
 	}
 
+	fn handle_lusers(&mut self) {
+		self.send_rpl_luserclient();
+		self.send_rpl_luserop();
+		self.send_rpl_luserunknown();
+		self.send_rpl_luserchannels();
+		self.send_rpl_luserme();
+	}
+
 	fn send_rpl_motd_start(&mut self) {
 		let reply = format!(":- {} Message of the day - \r\n", self.local_addr);
 		self.write_reply(reply);
@@ -257,21 +267,43 @@ impl Connection {
 		self.write_reply(reply);
 	}
 
-	fn send_rpl_postwelcome(&mut self) {
+	fn send_rpl_luserclient(&mut self) {
 		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 251 {} :There are 1 users and 0 services on 1 servers\r\n:{} 252 {} 0 :operator(s) online\r\n:{} 253 {} 0 :unknown connection(s)\r\n:{} 254 {} 0 :channels formed\r\n:{} 255 {} :I have 1 clients and 1 servers\r\n:{} 422 {} :MOTD File is missing\r\n",
-				self.local_addr,
-				this_nickname,
-				self.local_addr,
-				this_nickname,
-				self.local_addr,
-				this_nickname,
-				self.local_addr,
-				this_nickname,
-				self.local_addr,
-				this_nickname,
-				self.local_addr,
-				this_nickname);
+		let reply = format!(":{} 251 {} :There are 1 users and 0 services on 1 servers\r\n",
+			self.local_addr,
+			this_nickname);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_luserop(&mut self) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 252 {} 0 :operator(s) online\r\n",
+			self.local_addr,
+			this_nickname);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_luserunknown(&mut self) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 253 {} 0 :unknown connection(s)\r\n",
+			self.local_addr,
+			this_nickname);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_luserchannels(&mut self) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 254 {} 0 :channels formed\r\n",
+			self.local_addr,
+			this_nickname);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_luserme(&mut self) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 255 {} :I have 1 clients and 1 servers\r\n",
+			self.local_addr,
+			this_nickname);
 		self.write_reply(reply);
 	}
 

@@ -7,6 +7,7 @@ pub enum Command {
 	Ping,
 	Pong,
 	Motd,
+	Lusers,
 }
 
 struct Message {
@@ -143,6 +144,9 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 		"MOTD" => {
 			return Ok(Command::Motd);
 		},
+		"LUSERS" => {
+			return Ok(Command::Lusers);
+		}
 		_ => {return Err("unknown command");}
 	}
 }
