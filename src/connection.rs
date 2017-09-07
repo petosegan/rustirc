@@ -245,17 +245,28 @@ impl Connection {
 	}
 
 	fn handle_whois(&mut self, target: String) {
-		let target_user;
-		let target_addr;
+		let mut target_exists = false;
 		{
 			let nn = self.nicknames.lock().unwrap();
-			let uu = self.users.lock().unwrap();
-			target_addr = (*nn)[&target].clone();
-			target_user = (*uu)[&target_addr].clone();
+			if let Some(_) = (*nn).get(&target) {
+				target_exists = true;
+			}
 		}
-		self.send_rpl_whoisuser(target.clone(), target_user, target_addr);
-		self.send_rpl_whoisserver(target.clone(), target_addr);
-		self.send_rpl_endofwhois();
+		if target_exists {
+			let target_user;
+			let target_addr;
+			{
+				let nn = self.nicknames.lock().unwrap();
+				let uu = self.users.lock().unwrap();
+				target_addr = (*nn)[&target].clone();
+				target_user = (*uu)[&target_addr].clone();
+			}
+			self.send_rpl_whoisuser(target.clone(), target_user, target_addr);
+			self.send_rpl_whoisserver(target.clone(), target_addr);
+			self.send_rpl_endofwhois(target.clone());
+		} else {
+			self.send_err_nosuchnick(target);
+		}
 	}
 
 	fn send_rpl_motd_start(&mut self) {
@@ -382,11 +393,12 @@ impl Connection {
 		self.write_reply(reply);
 	}
 
-	fn send_rpl_endofwhois(&mut self) {
+	fn send_rpl_endofwhois(&mut self, nick: String) {
 		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 318 {} :End of WHOIS list\r\n",
+		let reply = format!(":{} 318 {} {} :End of WHOIS list\r\n",
 			self.local_addr,
-			this_nickname);
+			this_nickname,
+			nick);
 		self.write_reply(reply);
 	}
 
