@@ -19,6 +19,7 @@ pub struct Connection {
 	stream: BufStream<TcpStream>,
 	rx: mpsc::Receiver<String>,
 	phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>,
+	num_known_users: Arc<Mutex<usize>>,
 }
 
 impl Connection {
@@ -26,7 +27,8 @@ impl Connection {
 		nicknames: Arc<Mutex<HashMap<String, SocketAddr>>>,
 		users: Arc<Mutex<HashMap<SocketAddr, User>>>,
 		rx: mpsc::Receiver<String>,
-		phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>) -> Self {
+		phonebook: Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<String>>>>,
+		num_known_users: Arc<Mutex<usize>>) -> Self {
 		Connection {
 			my_nickname: None,
 			nicknames: nicknames,
@@ -35,7 +37,8 @@ impl Connection {
 			peer_addr: stream.peer_addr().unwrap(),
 			stream: BufStream::new(stream),
 			rx: rx,
-			phonebook: phonebook}
+			phonebook: phonebook,
+			num_known_users: num_known_users}
 	}
 
 	pub fn handle_client(&mut self) {
@@ -126,6 +129,10 @@ impl Connection {
 	}
 
 	fn send_welcome(&mut self) {
+		{
+			let mut n_users = self.num_known_users.lock().unwrap();
+			(*n_users) += 1;
+		}
 		self.send_rpl_welcome();
 		self.send_rpl_yourhost();
 		self.send_rpl_created();
@@ -136,6 +143,24 @@ impl Connection {
 
 	fn handle_quit(&mut self, quit_message: String) {
 		trace!("got QUIT message\nquit_message: {}", quit_message);
+		{ // remove self from shared data structures
+			let mut nn = self.nicknames.lock().unwrap();
+			let mut pb = self.phonebook.lock().unwrap();
+			let mut uu = self.users.lock().unwrap();
+			let target = self.get_nickname();
+			let target_addr = (*nn)[&target];
+			
+			if let Some(_) = (*nn).remove(&target) {
+				if let Some(_) = (*uu).remove(&target_addr) {
+					let mut n_users = self.num_known_users.lock().unwrap();
+					(*n_users) -= 1;
+				}
+			} else {
+				(*uu).remove(&target_addr);
+			}
+			(*pb).remove(&target_addr);
+		}
+
 		self.send_rpl_quit(quit_message);
 	}
 
@@ -191,11 +216,11 @@ impl Connection {
 	}
 
 	fn handle_motd(&mut self) {
-		self.send_rpl_motd_start();
 		let f_result = File::open("motd.txt");
 		if let Err(_) = f_result {
 			self.send_err_nomotd();
 		} else {
+			self.send_rpl_motd_start();
 			let mut buffer = [0; 80];
 			let mut f = f_result.unwrap();
 			loop {
@@ -234,12 +259,18 @@ impl Connection {
 	}
 
 	fn send_rpl_motd_start(&mut self) {
-		let reply = format!(":- {} Message of the day - \r\n", self.local_addr);
+		let reply = format!(":{} 375 {} :- {} Message of the day - \r\n", 
+			self.local_addr,
+			self.get_nickname(),
+			self.local_addr);
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_motd_end(&mut self) {
-		self.write_reply(":End of MOTD command\r\n".to_string());
+		let reply = format!(":{} 376 {} :End of MOTD command\r\n",
+			self.local_addr,
+			self.get_nickname());
+		self.write_reply(reply);
 	}
 
 	fn send_rpl_welcome(&mut self) {
@@ -288,10 +319,10 @@ impl Connection {
 	}
 
 	fn send_rpl_luserclient(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 251 {} :There are 1 users and 0 services on 1 servers\r\n",
+		let reply = format!(":{} 251 {} :There are {} users and 0 services on 1 servers\r\n",
 			self.local_addr,
-			this_nickname);
+			self.get_nickname(),
+			self.get_num_users());
 		self.write_reply(reply);
 	}
 
@@ -305,9 +336,10 @@ impl Connection {
 
 	fn send_rpl_luserunknown(&mut self) {
 		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 253 {} 0 :unknown connection(s)\r\n",
+		let reply = format!(":{} 253 {} {} :unknown connection(s)\r\n",
 			self.local_addr,
-			this_nickname);
+			this_nickname,
+			self.get_num_unknown());
 		self.write_reply(reply);
 	}
 
@@ -321,9 +353,10 @@ impl Connection {
 
 	fn send_rpl_luserme(&mut self) {
 		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 255 {} :I have 1 clients and 1 servers\r\n",
+		let reply = format!(":{} 255 {} :I have {} clients and 1 servers\r\n",
 			self.local_addr,
-			this_nickname);
+			this_nickname,
+			self.get_num_clients());
 		self.write_reply(reply);
 	}
 
@@ -393,6 +426,20 @@ impl Connection {
 	fn get_user(&self) -> String {
 		let uu = self.users.lock().unwrap();
 		return (*uu)[&self.peer_addr].user.clone();
+	}
+
+	fn get_num_users(&self) -> usize {
+		let n_users = self.num_known_users.lock().unwrap();
+		return n_users.clone();
+	}
+
+	fn get_num_unknown(&self) -> usize {
+		return self.get_num_clients() - self.get_num_users();
+	}
+
+	fn get_num_clients(&self) -> usize {
+		let pb = self.phonebook.lock().unwrap();
+		return (*pb).len();
 	}
 
 	fn write_reply(&mut self, reply: String) {
