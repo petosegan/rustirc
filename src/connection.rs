@@ -68,7 +68,8 @@ impl Connection {
 					Ok(Command::Pong) => {},
 					Ok(Command::Motd) => { self.handle_motd(); },
 					Ok(Command::Lusers) => { self.handle_lusers(); },
-					Ok(Command::Whois(target)) => { self.handle_whois(target); }
+					Ok(Command::Whois(target)) => { self.handle_whois(target); },
+					Ok(Command::Unknown(cmd)) => {self.send_err_unknowncommand(cmd); },
 					Err(e) => { error!("Message Parsing Error: {}", e); },
 				}
 			}
@@ -227,7 +228,11 @@ impl Connection {
 				let fread = f.read(&mut buffer);
 				match fread {
 					Ok(n) if n > 0 => {
-						self.write_reply(format!(":- {}\r\n", str::from_utf8(&buffer[..n]).unwrap()));
+						let reply = format!(":{} 372 {} :- {}\r\n", 
+							self.local_addr, 
+							self.get_nickname(),
+							str::from_utf8(&buffer[..n]).unwrap());
+						self.write_reply(reply);
 					},
 					_ => { break; }
 				}
@@ -421,6 +426,14 @@ impl Connection {
 		let reply = format!(":{} 422 {} :MOTD File is missing\r\n",
 			self.local_addr,
 			self.get_nickname());
+		self.write_reply(reply);
+	}
+
+	fn send_err_unknowncommand(&mut self, cmd: String) {
+		let reply = format!(":{} 421 {} {} :Unknown command\r\n",
+			self.local_addr,
+			self.get_nickname(),
+			cmd);
 		self.write_reply(reply);
 	}
 

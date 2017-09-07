@@ -9,6 +9,7 @@ pub enum Command {
 	Motd,
 	Lusers,
 	Whois(String), // target
+	Unknown(String), // command
 }
 
 struct Message {
@@ -155,6 +156,6 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 				return Ok(Command::Whois(this_message.params[0].clone()));
 			}
 		}
-		_ => {return Err("unknown command");}
+		_ => {return Ok(Command::Unknown(this_message.command));}
 	}
 }
