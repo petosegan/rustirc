@@ -65,6 +65,7 @@ impl Connection {
 					Ok(Command::Pong) => {},
 					Ok(Command::Motd) => { self.handle_motd(); },
 					Ok(Command::Lusers) => { self.handle_lusers(); },
+					Ok(Command::Whois(target)) => { self.handle_whois(target); }
 					Err(e) => { error!("Message Parsing Error: {}", e); },
 				}
 			}
@@ -213,6 +214,20 @@ impl Connection {
 		self.send_rpl_luserme();
 	}
 
+	fn handle_whois(&mut self, target: String) {
+		let target_user;
+		let target_addr;
+		{
+			let nn = self.nicknames.lock().unwrap();
+			let uu = self.users.lock().unwrap();
+			target_addr = (*nn)[&target].clone();
+			target_user = (*uu)[&target_addr].clone();
+		}
+		self.send_rpl_whoisuser(target.clone(), target_user, target_addr);
+		self.send_rpl_whoisserver(target.clone(), target_addr);
+		self.send_rpl_endofwhois();
+	}
+
 	fn send_rpl_motd_start(&mut self) {
 		let reply = format!(":- {} Message of the day - \r\n", self.local_addr);
 		self.write_reply(reply);
@@ -302,6 +317,36 @@ impl Connection {
 	fn send_rpl_luserme(&mut self) {
 		let this_nickname = self.get_nickname();
 		let reply = format!(":{} 255 {} :I have 1 clients and 1 servers\r\n",
+			self.local_addr,
+			this_nickname);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_whoisuser(&mut self, nick: String, user: User, host: SocketAddr) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 311 {} {} {} {} * :{}\r\n",
+			self.local_addr,
+			this_nickname,
+			nick,
+			user.user,
+			host,
+			user.realname);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_whoisserver(&mut self, nick: String, host:SocketAddr) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 312 {} {} {} :server info\r\n",
+			self.local_addr,
+			this_nickname,
+			nick,
+			host);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_endofwhois(&mut self) {
+		let this_nickname = self.get_nickname();
+		let reply = format!(":{} 318 {} :End of WHOIS list\r\n",
 			self.local_addr,
 			this_nickname);
 		self.write_reply(reply);

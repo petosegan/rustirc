@@ -8,6 +8,7 @@ pub enum Command {
 	Pong,
 	Motd,
 	Lusers,
+	Whois(String), // target
 }
 
 struct Message {
@@ -22,7 +23,7 @@ impl Message {
 	}
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct User {
 	pub user: String,
 	pub mode: String,
@@ -146,6 +147,13 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 		},
 		"LUSERS" => {
 			return Ok(Command::Lusers);
+		},
+		"WHOIS" => {
+			if num_param < 1 {
+				return Err("WHOIS needs a target");
+			} else {
+				return Ok(Command::Whois(this_message.params[0].clone()));
+			}
 		}
 		_ => {return Err("unknown command");}
 	}
