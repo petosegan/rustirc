@@ -4,6 +4,9 @@ use bufstream::BufStream;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::sync::mpsc;
+use std::fs::File;
+use std::io::prelude::*;
+use std::str;
 
 use parser::{Command, User, parse_message};
 
@@ -60,6 +63,7 @@ impl Connection {
 					Ok(Command::Notice(target, text)) => { self.handle_notice(target, text); },
 					Ok(Command::Ping) => { self.handle_ping(); },
 					Ok(Command::Pong) => {},
+					Ok(Command::Motd) => { self.handle_motd(); },
 					Err(e) => { error!("Message Parsing Error: {}", e); },
 				}
 			}
@@ -181,6 +185,31 @@ impl Connection {
 	fn handle_ping(&mut self) {
 		let reply = format!("PONG {}\r\n", self.local_addr);
 		self.write_reply(reply);
+	}
+
+	fn handle_motd(&mut self) {
+		self.send_rpl_motd_start();
+		let mut f = File::open("motd.txt").unwrap();
+		let mut buffer = [0; 80];
+		loop {
+			let fread = f.read(&mut buffer);
+			match fread {
+				Ok(n) if n > 0 => {
+					self.write_reply(format!(":- {}\r\n", str::from_utf8(&buffer[..n]).unwrap()));
+				},
+				_ => { break; }
+			}
+		}
+		self.send_rpl_motd_end();
+	}
+
+	fn send_rpl_motd_start(&mut self) {
+		let reply = format!(":- {} Message of the day - \r\n", self.local_addr);
+		self.write_reply(reply);
+	}
+
+	fn send_rpl_motd_end(&mut self) {
+		self.write_reply(":End of MOTD command\r\n".to_string());
 	}
 
 	fn send_rpl_welcome(&mut self) {

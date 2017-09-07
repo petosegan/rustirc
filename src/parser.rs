@@ -6,6 +6,7 @@ pub enum Command {
 	Notice(String, String), // msgtarget, msgtext
 	Ping,
 	Pong,
+	Motd,
 }
 
 struct Message {
@@ -138,6 +139,9 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 		},
 		"PONG" => {
 			return Ok(Command::Pong);
+		},
+		"MOTD" => {
+			return Ok(Command::Motd);
 		},
 		_ => {return Err("unknown command");}
 	}

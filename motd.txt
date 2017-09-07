@@ -1,0 +1,1 @@
+This is the text of the message of the day.  It should be sent line by line in bursts of 80 characters.
