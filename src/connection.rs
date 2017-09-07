@@ -192,18 +192,23 @@ impl Connection {
 
 	fn handle_motd(&mut self) {
 		self.send_rpl_motd_start();
-		let mut f = File::open("motd.txt").unwrap();
-		let mut buffer = [0; 80];
-		loop {
-			let fread = f.read(&mut buffer);
-			match fread {
-				Ok(n) if n > 0 => {
-					self.write_reply(format!(":- {}\r\n", str::from_utf8(&buffer[..n]).unwrap()));
-				},
-				_ => { break; }
+		let f_result = File::open("motd.txt");
+		if let Err(_) = f_result {
+			self.send_err_nomotd();
+		} else {
+			let mut buffer = [0; 80];
+			let mut f = f_result.unwrap();
+			loop {
+				let fread = f.read(&mut buffer);
+				match fread {
+					Ok(n) if n > 0 => {
+						self.write_reply(format!(":- {}\r\n", str::from_utf8(&buffer[..n]).unwrap()));
+					},
+					_ => { break; }
+				}
 			}
+			self.send_rpl_motd_end();
 		}
-		self.send_rpl_motd_end();
 	}
 
 	fn handle_lusers(&mut self) {
@@ -364,6 +369,13 @@ impl Connection {
 			self.local_addr,
 			self.get_nickname(),
 			nickname);
+		self.write_reply(reply);
+	}
+
+	fn send_err_nomotd(&mut self) {
+		let reply = format!(":{} 422 {} :MOTD File is missing\r\n",
+			self.local_addr,
+			self.get_nickname());
 		self.write_reply(reply);
 	}
 
