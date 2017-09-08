@@ -180,7 +180,11 @@ impl Connection {
 			let target_addr = (*nn)[&target];
 			let target_tx = &(*pb)[&target_addr];
 
-			let prefix = format!(":{}!{}@{} PRIVMSG {} :", self.get_nickname(), self.get_user(), self.local_addr, target);
+			let prefix = format!(":{}!{}@{} PRIVMSG {} :", 
+				self.get_nickname(), 
+				self.get_user(), 
+				self.local_addr, 
+				target);
 			let full_message = format!("{}{}", prefix, text);
 
 			(*target_tx).send(full_message).unwrap();
@@ -204,7 +208,11 @@ impl Connection {
 			let target_addr = (*nn)[&target];
 			let target_tx = &(*pb)[&target_addr];
 
-			let prefix = format!(":{}!{}@{} NOTICE {} :", self.get_nickname(), self.get_user(), self.local_addr, target);
+			let prefix = format!(":{}!{}@{} NOTICE {} :", 
+				self.get_nickname(), 
+				self.get_user(), 
+				self.local_addr, 
+				target);
 			let full_message = format!("{}{}", prefix, text);
 
 			(*target_tx).send(full_message).unwrap();
@@ -275,29 +283,24 @@ impl Connection {
 	}
 
 	fn send_rpl_motd_start(&mut self) {
-		let reply = format!(":{} 375 {} :- {} Message of the day - \r\n", 
-			self.local_addr,
-			self.get_nickname(),
+		let reply = format!("{}:- {} Message of the day - \r\n",
+			self.make_prefix(375),
 			self.local_addr);
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_motd_end(&mut self) {
-		let reply = format!(":{} 376 {} :End of MOTD command\r\n",
-			self.local_addr,
-			self.get_nickname());
+		let reply = format!("{}:End of MOTD command\r\n",
+			self.make_prefix(376));
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_welcome(&mut self) {
-		let this_nickname = self.get_nickname();
-		let this_user = self.get_user();
-		let reply = format!(":{} 001 {} :Welcome to the Internet Relay Network {}!{}@{}\r\n",
-				self.local_addr,
-				this_nickname,
-				this_nickname,
-				this_user,
-				self.peer_addr);
+		let reply = format!("{}:Welcome to the Internet Relay Network {}!{}@{}\r\n",
+			self.make_prefix(001),
+			self.get_nickname(),
+			self.get_user(),
+			self.peer_addr);
 		self.write_reply(reply);
 	}
 
@@ -309,78 +312,61 @@ impl Connection {
 	}
 
 	fn send_rpl_yourhost(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 002 {} :Your host is {}, running version 0.1\r\n",
-				self.local_addr,
-				this_nickname,
-				self.local_addr);
+		let reply = format!("{}:Your host is {}, running version 0.1\r\n",
+			self.make_prefix(002),
+			self.local_addr);
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_created(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 003 {} :This server was created SOMEDATE\r\n",
-				self.local_addr,
-				this_nickname);
+		let reply = format!("{}:This server was created SOMEDATE\r\n",
+			self.make_prefix(003));
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_myinfo(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 004 {} {} 0.1 ao mtov\r\n",
-				self.local_addr,
-				this_nickname,
-				self.local_addr);
+		let reply = format!("{}{} 0.1 ao mtov\r\n",
+			self.make_prefix(004),
+			self.local_addr);
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_luserclient(&mut self) {
-		let reply = format!(":{} 251 {} :There are {} users and 0 services on 1 servers\r\n",
-			self.local_addr,
-			self.get_nickname(),
+		let reply = format!("{}:There are {} users and 0 services on 1 servers\r\n",
+			self.make_prefix(251),
 			self.get_num_users());
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_luserop(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 252 {} 0 :operator(s) online\r\n",
-			self.local_addr,
-			this_nickname);
+		let reply = format!("{}0 :operator(s) online\r\n",
+			self.make_prefix(252));
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_luserunknown(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 253 {} {} :unknown connection(s)\r\n",
-			self.local_addr,
-			this_nickname,
+		let reply = format!("{}{} :unknown connection(s)\r\n",
+			self.make_prefix(253),
 			self.get_num_unknown());
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_luserchannels(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 254 {} 0 :channels formed\r\n",
-			self.local_addr,
-			this_nickname);
+		let reply = format!("{}0 :channels formed\r\n",
+			self.make_prefix(254));
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_luserme(&mut self) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 255 {} :I have {} clients and 1 servers\r\n",
-			self.local_addr,
-			this_nickname,
+		let reply = format!("{}:I have {} clients and 1 servers\r\n",
+			self.make_prefix(255),
 			self.get_num_clients());
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_whoisuser(&mut self, nick: String, user: User, host: SocketAddr) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 311 {} {} {} {} * :{}\r\n",
-			self.local_addr,
-			this_nickname,
+		let reply = format!("{}{} {} {} * :{}\r\n",
+			self.make_prefix(311),
 			nick,
 			user.user,
 			host,
@@ -389,20 +375,16 @@ impl Connection {
 	}
 
 	fn send_rpl_whoisserver(&mut self, nick: String, host:SocketAddr) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 312 {} {} {} :server info\r\n",
-			self.local_addr,
-			this_nickname,
+		let reply = format!("{}{} {} :server info\r\n",
+			self.make_prefix(312),
 			nick,
 			host);
 		self.write_reply(reply);
 	}
 
 	fn send_rpl_endofwhois(&mut self, nick: String) {
-		let this_nickname = self.get_nickname();
-		let reply = format!(":{} 318 {} {} :End of WHOIS list\r\n",
-			self.local_addr,
-			this_nickname,
+		let reply = format!("{}{} :End of WHOIS list\r\n",
+			self.make_prefix(318),
 			nick);
 		self.write_reply(reply);
 	}
@@ -415,24 +397,21 @@ impl Connection {
 	}
 
 	fn send_err_nosuchnick(&mut self, nickname: String) {
-		let reply = format!(":{} 401 {} {} :No such nick/channel\r\n",
-			self.local_addr,
-			self.get_nickname(),
+		let reply = format!("{}{} :No such nick/channel\r\n",
+			self.make_prefix(401),
 			nickname);
 		self.write_reply(reply);
 	}
 
 	fn send_err_nomotd(&mut self) {
-		let reply = format!(":{} 422 {} :MOTD File is missing\r\n",
-			self.local_addr,
-			self.get_nickname());
+		let reply = format!("{}:MOTD File is missing\r\n",
+			self.make_prefix(422));
 		self.write_reply(reply);
 	}
 
 	fn send_err_unknowncommand(&mut self, cmd: String) {
-		let reply = format!(":{} 421 {} {} :Unknown command\r\n",
-			self.local_addr,
-			self.get_nickname(),
+		let reply = format!("{}{} :Unknown command\r\n",
+			self.make_prefix(421),
 			cmd);
 		self.write_reply(reply);
 	}
@@ -442,6 +421,10 @@ impl Connection {
 	// 			self.local_addr);
 	// 	self.write_reply(reply);
 	// }
+
+	fn make_prefix(&self, repl_code: u16) -> String {
+		format!(":{} {} {} ", self.local_addr, repl_code, self.get_nickname())
+	}
 
 	fn get_nickname(&self) -> String {
 		let result = self.my_nickname.clone().unwrap();

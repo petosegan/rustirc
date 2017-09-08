@@ -18,18 +18,6 @@ fn brief<ProgramName>(program: ProgramName) -> String
     return format!("Usage: {} -o PASSWD [-p PORT] [(-q|-v|--vv)]", program);
 }
 
-/* 
-New streams will spawn threads (Connection) to own them.
-Connections will own a receiver channel.
-All connections share references to:
-	nicknames
-	users
-	phonebook
-The annoying bit: each Connection has to read and write
-to its stream. It has to monitor both the stream and the
-channel. Not sure how to do this.
-*/
-
 #[allow(unused_must_use)]
 fn main() {
     let args: Vec<String> = env::args().collect();

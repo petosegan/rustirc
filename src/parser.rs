@@ -137,18 +137,10 @@ pub fn parse_message(message: String) -> Result<Command, &'static str> {
 				return Ok(Command::Notice(this_target, this_text));
 			}
 		},
-		"PING" => {
-			return Ok(Command::Ping);
-		},
-		"PONG" => {
-			return Ok(Command::Pong);
-		},
-		"MOTD" => {
-			return Ok(Command::Motd);
-		},
-		"LUSERS" => {
-			return Ok(Command::Lusers);
-		},
+		"PING" => { return Ok(Command::Ping); },
+		"PONG" => { return Ok(Command::Pong); },
+		"MOTD" => { return Ok(Command::Motd); },
+		"LUSERS" => { return Ok(Command::Lusers); },
 		"WHOIS" => {
 			if num_param < 1 {
 				return Err("WHOIS needs a target");
